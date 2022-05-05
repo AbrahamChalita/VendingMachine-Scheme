@@ -97,5 +97,14 @@
 (define (checks slots monedas transacciones)
   (list "Transaction successful" (update-inv (caar transacciones) slots) (final-money (repeat-money (encode (cadar transacciones)) money))))
 
+(define (allcheck slots monedas transacciones)
+  (if (null? transacciones) '()
+     (if (pair? (test slots monedas transacciones))
+         (cons (test slots monedas transacciones)
+               (allcheck (cadr (test slots monedas transacciones))
+                         (caddr (test slots monedas transacciones))
+                         (cdr transacciones)))
+      (cons (list (test slots monedas transacciones)) (allcheck slots monedas (cdr transacciones)))))
+  )
 
 
