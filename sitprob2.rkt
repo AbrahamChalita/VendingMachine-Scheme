@@ -45,7 +45,7 @@
                                      (update-inv prod (cdr slots)))))
   )
 ; comienza función de filtrado de dinero
-; Recibe seq tipo '(2 6) ---> de las monedas de 2, hay 6
+; Recibe secuencia de tipo '(2 6) ---> e.g de las monedas de 2, hay 6
 
 (define (update-money seq money)
   (if (null? money) '()
@@ -82,7 +82,9 @@
 
 (define (repeat-money seq money)
   (if (null? seq) '()
-      (filter (lambda (x) (if (equal? x '()) #f #t)) (cons (update-money (car seq) money) (repeat-money (cdr seq) (update-money (car seq) money)))))
+      (filter (lambda (x) (if (equal? x '()) #f #t))
+              (cons (update-money (car seq) money)
+                    (repeat-money (cdr seq) (update-money (car seq) money)))))
   )
 
 (define final-money
@@ -95,7 +97,8 @@
   )
 
 (define (checks slots monedas transacciones)
-  (list "Transaction successful" (update-inv (caar transacciones) slots) (final-money (repeat-money (encode (cadar transacciones)) money))))
+  (list "Transaction successful" (update-inv (caar transacciones) slots)
+                                 (final-money (repeat-money (encode (cadar transacciones)) monedas))))
 
 (define (allcheck slots monedas transacciones)
   (if (null? transacciones) '()
@@ -106,5 +109,3 @@
                          (cdr transacciones)))
       (cons (list (test slots monedas transacciones)) (allcheck slots monedas (cdr transacciones)))))
   )
-
-
