@@ -109,3 +109,17 @@
                          (cdr transacciones)))
       (cons (list (test slots monedas transacciones)) (allcheck slots monedas (cdr transacciones)))))
   )
+
+
+(define value 13)
+
+(define testmoney '((1 24) (2 10) (5 14) (10 10) (20 5) (50 4)))
+
+
+(define (change value money)
+  (if (null? money) '()
+      (if (= (quotient value (caar money)) 0) (change value (cdr money))
+          (if (= (quotient value (caar money)) value) (cons (list (caar money) (quotient value (caar money))) (change value (cdr money)))
+              (if (>= (quotient value (caar money)) 1) (cons (list (caar money) (quotient value (caar money))) (change (remainder value (caar money)) (cdr money)))
+                  (change value (cdr money))
+                  ))))) 
