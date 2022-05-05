@@ -27,10 +27,11 @@
   
   )
 
-(define (check-transaction trans slots)
+(define (check-transaction trans slots money)
   (cond
     ((equal? (check-inv (car trans) slots) #f) (quote "No inventory"))
-    ((equal? (enough? trans slots) #f) (quote "Not enough money"))
+    ((equal? (enough? trans slots) #f) (quote "Not enough money introduced"))
+    ((not (pair? (enough-change? trans slots money))) (enough-change? trans slots money))
     (else (and (check-inv (car trans) slots) (enough? trans slots)) #t))
   )
 
@@ -54,6 +55,15 @@
                                                  (update-money seq (cdr money)))
           (append (list (cons (caar money) (cons (car (cdr (car money))) null)))
                   (update-money seq (cdr money)))))
+  )
+
+(define (update-money-minus seq money)
+  (if (null? money) '()
+      (if (equal? (car seq) (caar money)) (append(list (cons (caar money)
+                                                 (cons (- (car (cdr (car money))) (cadr seq)) null)))
+                                                 (update-money-minus seq (cdr money)))
+          (append (list (cons (caar money) (cons (car (cdr (car money))) null)))
+                  (update-money-minus seq (cdr money)))))
   )
 
 (define (encode lista)
@@ -92,8 +102,8 @@
 
 (define (test slots monedas transacciones)
   (if (null? transacciones) '()
-      (if (equal? (check-transaction (car transacciones) slots) #t) (checks slots monedas transacciones)
-          (check-transaction (car transacciones) slots)))
+      (if (equal? (check-transaction (car transacciones) slots monedas) #t) (checks slots monedas transacciones)
+          (check-transaction (car transacciones) slots monedas)))
   )
 
 (define (checks slots monedas transacciones)
@@ -111,15 +121,34 @@
   )
 
 
-(define value 13)
-
-(define testmoney '((1 24) (2 10) (5 14) (10 10) (20 5) (50 4)))
-
-
 (define (change value money)
   (if (null? money) '()
       (if (= (quotient value (caar money)) 0) (change value (cdr money))
-          (if (= (quotient value (caar money)) value) (cons (list (caar money) (quotient value (caar money))) (change value (cdr money)))
-              (if (>= (quotient value (caar money)) 1) (cons (list (caar money) (quotient value (caar money))) (change (remainder value (caar money)) (cdr money)))
+          (if (and (= (quotient value (caar money)) value) (>= (cadar money) (quotient value (caar money))))
+              (cons (list (caar money) (quotient value (caar money)))
+                    (change value (cdr money)))
+              (if (and (>= (quotient value (caar money)) 1) (>= (cadar money) (quotient value (caar money))))
+                  (cons (list (caar money) (quotient value (caar money)))
+                        (change (remainder value (caar money)) (cdr money)))
                   (change value (cdr money))
-                  ))))) 
+                  )))))
+
+; returns change if any (numeric value)
+(define (change? trans slots)
+  (if (null? slots) 0
+      (if (equal? (car trans) (caar slots)) (- (apply + (cadr trans)) (cadar slots))
+          (change? trans (cdr slots))))
+  )
+
+(define (sum-change change)
+  (if (null? change) 0
+      (+ (apply * (car change)) (sum-change (cdr change))))
+  )
+
+(define (enough-change? trans slots money)
+  (cond
+    ((equal? (change? trans slots) 0) (list "No change needed!"))
+    ((empty? (change (change? trans slots) (reverse money))) (quote "No available change"))
+    ((not (equal? (sum-change (change (change? trans slots) (reverse money))) (change? trans slots))) (quote "Not enough change available"))
+    (else (change (change? trans slots) (reverse money))))
+  )
