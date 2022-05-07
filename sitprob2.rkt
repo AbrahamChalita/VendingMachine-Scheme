@@ -1,13 +1,29 @@
 #lang racket
-(define machine (open-input-file "/Users/ferra/Desktop/machine.txt"))
+(display "Enter file name: ")
+(define file (read-line))
+(define machine (open-input-file "machine.txt"))
 (define money (read machine))
 (define slots (read machine))
 (close-input-port machine)
-(define transactions (open-input-file "/Users/ferra/Desktop/transacciones.txt"))
+(define transactions (open-input-file file))
 (define transacciones (read transactions))
 (close-input-port transactions)
 
+; determines if the inserted sequence of coins does not traspass the established limit
+(define (check_coins_limit trans money)
+  (if (null? money) #f
+      (if (equal? (caar money) (car trans)) (if (>= (+ (car (cdr (car money)))
+                                                (car (cdr trans)))
+                                                (car (cddr (car money)))) #f #t)
+          (check_coins_limit trans (cdr money)))))
+      
+; determines if product (format 'A , 'B , etc) exists in the slots data
+(define (contains list x)
+	(cond [(null? list) #f]
+		[(equal? (caar list) x) #t]
+		[else (contains (cdr list) x)]))
 
+; determines if there is enough
 (define (check-inv prod lista)
   (if (null? lista) #f
       (if (equal? (caar lista) prod) (if (>= (caddr (car lista)) 1) #t #f)
@@ -27,11 +43,26 @@
   
   )
 
-(define (check-transaction trans slots money)
+(define (known-coin? coin list)
+  (if (null? list) #f
+      (if (equal? coin (car list)) #t
+          (known-coin? coin (cdr list))))
+  )
+
+(define all-true?
+  (lambda (lst)
+    (or (null? lst)
+        (and (eq? (car lst) #t)
+             (all-true? (cdr lst))))))
+
+(define (check-transaction trans slots monedas)
   (cond
+    ((equal? (contains slots (car trans)) #f) (quote "Unvalid product (Does not exist)"))
     ((equal? (check-inv (car trans) slots) #f) (quote "No inventory"))
     ((equal? (enough? trans slots) #f) (quote "Not enough money introduced"))
-    ((not (pair? (enough-change? trans slots money))) (enough-change? trans slots money))
+    ((equal? (all-true? (map (lambda (x) (known-coin? x (map car monedas))) (cadr trans))) #f) (quote "An unknown coin was introduced"))
+    ((equal? (all-true? (map (lambda (x) (check_coins_limit x money)) (encode (car (cdr trans))))) #f) (quote "Ups, limit coin reached"))
+    ((not (pair? (enough-change? trans slots monedas))) (enough-change? trans slots monedas))
     (else (and (check-inv (car trans) slots) (enough? trans slots)) #t))
   )
 
@@ -56,6 +87,7 @@
           (append (list (cons (caar money) (cons (car (cdr (car money))) null)))
                   (update-money seq (cdr money)))))
   )
+
 
 (define (update-money-minus seq money)
   (if (null? money) '()
@@ -97,6 +129,14 @@
                     (repeat-money (cdr seq) (update-money (car seq) money)))))
   )
 
+
+(define (repeat-money-down seq money)
+  (if (null? seq) '()
+      (filter (lambda (x) (if (equal? x '()) #f #t))
+              (cons (update-money-minus (car seq) money)
+                    (repeat-money-down (cdr seq) (update-money-minus(car seq) money)))))
+  )
+
 (define final-money
   (lambda (x) (last_element x)))
 
@@ -108,15 +148,26 @@
 
 (define (checks slots monedas transacciones)
   (list "Transaction successful" (update-inv (caar transacciones) slots)
-                                 (final-money (repeat-money (encode (cadar transacciones)) monedas))))
+                                 (final-money (repeat-money (encode (cadar transacciones)) monedas))
+                                 (if (pair? (car (enough-change? (car transacciones) slots monedas)))   
+                                     (list "Change: " (enough-change? (car transacciones) slots monedas)
+                                           "Updated money: "(final-money (repeat-money-down
+                                                                          (enough-change? (car transacciones) slots monedas)
+                                                                          (final-money (repeat-money (encode (cadar transacciones)) monedas)))))
+                                     (enough-change? (car transacciones) slots monedas))))
 
 (define (allcheck slots monedas transacciones)
   (if (null? transacciones) '()
      (if (pair? (test slots monedas transacciones))
-         (cons (test slots monedas transacciones)
-               (allcheck (cadr (test slots monedas transacciones))
-                         (caddr (test slots monedas transacciones))
-                         (cdr transacciones)))
+         (if (equal? (car (last_element (test slots monedas transacciones))) "No change needed!")
+             (cons (test slots monedas transacciones)
+                   (allcheck (cadr (test slots monedas transacciones))
+                             (caddr (test slots monedas transacciones))
+                             (cdr transacciones)))
+             (cons (test slots monedas transacciones)
+                   (allcheck (cadr (test slots monedas transacciones))
+                             (last_element (last_element (test slots monedas transacciones)))
+                             (cdr transacciones))))
       (cons (list (test slots monedas transacciones)) (allcheck slots monedas (cdr transacciones)))))
   )
 
@@ -150,5 +201,111 @@
     ((equal? (change? trans slots) 0) (list "No change needed!"))
     ((empty? (change (change? trans slots) (reverse money))) (quote "No available change"))
     ((not (equal? (sum-change (change (change? trans slots) (reverse money))) (change? trans slots))) (quote "Not enough change available"))
+    ((not (positive? (sum-change (change (change? trans slots) (reverse money))))) (quote "Error in calculation"))
     (else (change (change? trans slots) (reverse money))))
   )
+
+
+; Results section
+
+(define resultados (allcheck slots money transacciones))
+
+(define (imbricada? lista) (if (null? lista) #f (if (pair? (car lista)) #t (imbricada? (cdr lista)))))
+
+(define (get-last-valid-transaction results)
+  (if (null? results) '()
+      (if (imbricada? (car results)) (car results)
+          (get-last-valid-transaction (cdr results))))
+  )
+
+(define new-money (last_element (last_element (get-last-valid-transaction (reverse resultados)))))
+(define new-slot (cadr (get-last-valid-transaction (reverse resultados))))
+
+(define (overallwins new old)
+  (cond
+    ((null? new) '())
+    ((null? old) '())
+    (else (cons (- (car (cdr (car new))) (car (cdr (car old)))) (overallwins (cdr new) (cdr old)))))
+  )
+  
+
+(define (low-inv slots)
+  (cond
+    ((null? slots) '())
+    ((if (or (and (<= (last_element (car slots)) 5) (>= (last_element (car slots)) 1)) (zero? (last_element (car slots))))
+         (cons (list "Product: " (caar slots) "Q: "(last_element (car slots))) (low-inv (cdr slots)))
+         (low-inv (cdr slots)))))
+  )
+
+(define (fullcoins? new old)
+  (cond
+    ((null? new) '())
+    ((null? old) '())
+    (else (if (or (and (< (car (cdr (car new))) (last_element (car old)))
+                       (>= (car (cdr (car new))) (- (last_element (car old)) 10)))
+                  (equal? (car (cdr (car new))) (last_element (car old))))
+              (cons (list "Coin: " (caar new) "Inv: " (car (cdr (car new))) "Limit" (last_element (car old))) (fullcoins? (cdr new) (cdr old)))
+              (fullcoins? (cdr new) (cdr old)))))
+  )
+
+
+(define (emptycoins? new)
+  (cond
+    ((null? new) '())
+    (else (if (or (and (<= (car (cdr (car new))) 10)
+                       (>= (car (cdr (car new))) 1))
+                  (zero? (car (cdr (car new)))))
+              (cons (list "Coin: " (caar new) "Inv: " (car (cdr (car new)))) (emptycoins? (cdr new)))
+              (emptycoins? (cdr new)))))
+  )
+
+(define (review newmoney oldmoney newslots)
+  (list
+       "<------- Earnings ------->"(if (zero? (apply + (map (lambda (x) (if (positive? x) x 0)) (overallwins new-money money)))) "No earnings" (apply + (map (lambda (x) (if (positive? x) x 0)) (overallwins new-money money))))
+       "<------- Inventory ------->" (if (empty? (low-inv newslots)) "No maintenance in inventory needed" (low-inv newslots))
+       "<------- Full Coins ------->"(if (empty? (fullcoins? newmoney oldmoney)) "No full/almost full coins" (fullcoins? newmoney oldmoney))
+       "<------- Empty Coins ------->" (if (empty? (emptycoins? newmoney)) "No empty/almost empty coins" (emptycoins? newmoney))
+       ))
+
+(define (filter-results resultados)
+  (if (null? resultados) '()
+      (if (imbricada? (car resultados)) (cons (list (caar resultados) (if (imbricada? (last_element (car resultados)))
+                                                                    (car (cdr (last_element (car resultados))))
+                                                                    (last_element (car resultados))))
+                                              (filter-results (cdr resultados)))
+          (cons (list (car resultados)) (filter-results (cdr resultados)))))
+  )
+
+(define (format-results resultados)
+  (if (null? resultados) '()
+      (if (null? (cdr (car resultados))) (cons (list (car (car resultados))) (format-results (cdr resultados)))
+          (cons (list (car (car resultados)) "Change: " (last_element (car resultados))) (format-results (cdr resultados)))))
+  )
+
+
+(define (display-transactions lst)
+  (for-each (lambda (what)
+              (display (car what))
+              (display "\n")
+              (display (cdr what))
+              (display "\n")
+              (display "\n"))
+            lst)
+  (newline))
+
+(define (display-review lst)
+  (for-each (lambda (what)
+              (display what)
+              (display "\n")
+              (display "\n"))
+            lst)
+  (newline))
+
+(display "<---------- Transactions ---------->")
+(display "\n")
+(display-review (filter-results resultados))
+(display "\n")
+(display "\n")
+(display "<$$$$$$$ Review $$$$$$$>")
+(display "\n")
+(display-review (review new-money money new-slot))
