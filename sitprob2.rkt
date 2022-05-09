@@ -1,4 +1,7 @@
 #lang racket
+
+; author: Abraham Chalita Núnez
+
 (display "Enter file name: ")
 (define file (read-line))
 
@@ -353,12 +356,4 @@
 (display-review (review new-money money new-slot))
 
 
-
-
-(write new-slot machine)
-(write new-money machine)
-
-
-
-
-
+; rewriting file is missing
