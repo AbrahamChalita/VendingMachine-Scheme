@@ -1,6 +1,7 @@
 #lang racket
 (display "Enter file name: ")
 (define file (read-line))
+
 (define machine (open-input-file "machine.txt"))
 (define money (read machine))
 (define slots (read machine))
@@ -36,6 +37,7 @@
       (if (equal? (caar slots) (car trans)) (if (is_sequence_enough? (car (cdr trans)) 0 (cadr (car slots))) #t #f)
           (enough_money? trans (cdr slots)))
   ))
+
 (define (is_sequence_enough? sequence start target)
   (if (null? sequence) #f
       (if (>= (+ (car sequence) start) target) #t
@@ -258,7 +260,7 @@
 
 (define (get-updated-money lastvalidtrans)
   (if (equal? (car (last_element lastvalidtrans)) "No change needed!") (car (cddr lastvalidtrans))
-      (last_element (last_element (lastvalidtrans))))
+      (last_element (last_element lastvalidtrans)))
   )
 
 (define new-money (get-updated-money (get-last-valid-transaction (reverse resultados))))
@@ -305,7 +307,8 @@
 
 (define (review newmoney oldmoney newslots)
   (list
-       "<------- Earnings ------->"(if (zero? (apply + (map (lambda (x) (if (positive? x) x 0)) (overallwins new-money money)))) "No earnings" (apply + (map (lambda (x) (if (positive? x) x 0)) (overallwins new-money money))))
+       "<------- Earnings ------->"(if (zero? (apply + (map (lambda (x) (if (positive? x) x 0)) (overallwins new-money money)))) "No earnings"
+                                       (apply + (map (lambda (x) (if (positive? x) x 0)) (overallwins new-money money))))
        "<------- Inventory ------->" (if (empty? (low-inv newslots)) "No maintenance in inventory needed" (low-inv newslots))
        "<------- Full Coins ------->"(if (empty? (fullcoins? newmoney oldmoney)) "No full/almost full coins" (fullcoins? newmoney oldmoney))
        "<------- Empty Coins ------->" (if (empty? (emptycoins? newmoney)) "No empty/almost empty coins" (emptycoins? newmoney))
@@ -319,13 +322,6 @@
                                               (filter-results (cdr resultados)))
           (cons (list (car resultados)) (filter-results (cdr resultados)))))
   )
-
-(define (format-results resultados)
-  (if (null? resultados) '()
-      (if (null? (cdr (car resultados))) (cons (list (car (car resultados))) (format-results (cdr resultados)))
-          (cons (list (car (car resultados)) "Change: " (last_element (car resultados))) (format-results (cdr resultados)))))
-  )
-
 
 (define (display-transactions lst)
   (for-each (lambda (what)
@@ -359,7 +355,8 @@
 
 
 
-
+(write new-slot machine)
+(write new-money machine)
 
 
 
